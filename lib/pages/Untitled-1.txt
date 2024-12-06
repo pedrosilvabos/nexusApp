@@ -1,0 +1,433 @@
+import 'dart:async'; // Add this for the Timer
+import 'dart:convert';
+
+import 'package:flutter/material.dart';
+
+import 'package:flutter/services.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:plataforma/misc/tile_providers.dart';
+import 'package:plataforma/widgets/drawer/floating_menu_button.dart';
+import 'package:plataforma/widgets/drawer/menu_drawer.dart';
+
+import 'package:flutter_svg/svg.dart';
+import 'package:geocoding/geocoding.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:latlong2/latlong.dart';
+
+class HomePage extends StatefulWidget {
+  static const String route = '/';
+
+  const HomePage({super.key});
+
+  @override
+  State<HomePage> createState() => _HomePageState();
+}
+
+class _HomePageState extends State<HomePage>
+    with SingleTickerProviderStateMixin {
+  final LatLng terceiraCenter = const LatLng(38.7167, -27.2177);
+  LatLng? _currentLocation;
+  String _currentLocationName = '';
+  bool counterRotate = false;
+  Alignment selectedAlignment = Alignment.topCenter;
+  late final customMarkers = <Marker>[];
+  late final poiMarkers = <Marker>[];
+  static final MapController _mapController = MapController();
+  late AnimationController _animationController;
+  late Animation<double> _scaleAnimation;
+  Position? _position;
+  late Timer _locationUpdateTimer;
+  LatLng? lastKnownLocation;
+
+  @override
+  void initState() {
+    super.initState();
+
+    _getCurrentLocation();
+
+    // Initialize AnimationController for pin animation
+    _animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 1),
+    )..repeat(reverse: true);
+
+    // Define the scale animation (pulse effect)
+    _scaleAnimation = Tween<double>(begin: 1.0, end: 1.2).animate(
+      CurvedAnimation(parent: _animationController, curve: Curves.easeInOut),
+    );
+
+    // Load JSON data
+    _loadJsonData();
+    // Initialize Text-to-Speech and say "Hello"
+
+    // Set up the timer to update the location every 10 seconds
+    _locationUpdateTimer = Timer.periodic(const Duration(seconds: 3), (_) {
+      _getCurrentLocation();
+      _getAddressFromCoordinates();
+    });
+  }
+
+  Future<void> _loadJsonData() async {
+    try {
+      // Load and decode the JSON file
+      String jsonString = await rootBundle.loadString('assets/whatToDo.json');
+      final dynamic jsonResponse = json.decode(jsonString);
+      if (jsonResponse is List<dynamic>) {
+        for (final item in jsonResponse) {
+          if (item is Map<String, dynamic> && item.containsKey('coordinates')) {
+            final dynamic latitudeString = item['coordinates']['latitude'];
+            final dynamic longitudeString = item['coordinates']['longitude'];
+            setState(() {
+              // Check if the values are strings before attempting to parse them
+              final double latitude = double.parse(latitudeString.toString());
+              final double longitude = double.parse(longitudeString.toString());
+
+              // Add the POI marker to the set of markers
+              poiMarkers
+                  .add(poiMarker(LatLng(latitude, longitude), item['name']));
+            });
+          }
+        }
+      } else {
+        throw Exception('JSON is not a List<dynamic>');
+      }
+    } catch (e) {
+      print('Error loading JSON: $e');
+    }
+  }
+
+  @override
+  void dispose() {
+    _locationUpdateTimer
+        .cancel(); // Cancel the timer when the widget is disposed
+    _animationController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _getCurrentLocation() async {
+    bool serviceEnabled;
+    LocationPermission permission;
+
+    // Check if location services are enabled
+    serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      return Future.error('Location services are disabled.');
+    }
+
+    // Check for location permissions
+    permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) {
+        return Future.error('Location permissions are denied.');
+      }
+    }
+
+    if (permission == LocationPermission.deniedForever) {
+      return Future.error('Location permissions are permanently denied.');
+    }
+
+    // Fetch the current location
+    final position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high);
+
+    setState(() {
+      _position = position;
+      _currentLocation = LatLng(position.latitude, position.longitude);
+
+      // Only update the marker if the location has changed
+      if (lastKnownLocation == null ||
+          _position!.latitude != lastKnownLocation!.latitude ||
+          _position!.longitude != lastKnownLocation!.longitude) {
+        customMarkers.clear();
+        customMarkers.add(buildPin(_currentLocation!, position.speed));
+        lastKnownLocation = _currentLocation;
+      }
+    });
+
+    // Perform reverse geocoding
+    try {
+      final placemarks = await placemarkFromCoordinates(
+        position.latitude,
+        position.longitude,
+      );
+      if (placemarks.isNotEmpty) {
+        final place = placemarks.first;
+        debugPrint(
+            'Current location: ${place.street}, ${place.locality}, ${place.country}');
+        // Use `place` to display the name in the UI
+      }
+    } catch (e) {
+      debugPrint('Error during reverse geocoding: $e');
+    }
+  }
+
+  Marker poiMarker(LatLng point, dynamic name) {
+    return Marker(
+      point: point,
+      width: 150, // Increase width for more space
+
+      child: Stack(
+        alignment: Alignment.center, // Align elements centrally
+        children: [
+          Positioned(
+            bottom: 0, // Position the dot at the bottom
+            child: Container(
+              width: 5,
+              height: 5,
+              decoration: BoxDecoration(
+                color: Colors.black, // Set the dot color to black
+                shape: BoxShape.circle, // Make it a circle
+              ),
+            ),
+          ),
+          Container(
+            color: Colors.white.withOpacity(0.7), // Background for readability
+            child: Text(
+              name.toString(),
+              textAlign: TextAlign.center, // Center-align the text
+              style: TextStyle(
+                fontSize: 10, // Adjust font size as needed
+                color: Colors.black, // Set text color
+              ),
+              maxLines: 1, // Limit to one line
+              overflow: TextOverflow.ellipsis, // Add ellipsis for long names
+              softWrap: false, // Prevent wrapping
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Marker buildPin(LatLng point, double speed) {
+    String iconPath;
+
+    // Determine the correct SVG based on the filtered speed
+    if (speed <= 1) {
+      iconPath = 'assets/idle.svg';
+    } else if (speed > 1) {
+      iconPath = 'assets/walk.svg';
+    } else {
+      iconPath = 'assets/car.svg';
+    }
+
+    return Marker(
+      point: point,
+      width: 30,
+      height: 30,
+      child: AnimatedBuilder(
+        animation: _scaleAnimation,
+        builder: (context, child) {
+          return Transform.scale(
+            scale: _scaleAnimation.value,
+            child: child,
+          );
+        },
+        child: SvgPicture.asset(
+          iconPath,
+          height: 50,
+          width: 50,
+          fit: BoxFit.contain,
+        ),
+      ),
+    );
+  }
+
+  String getHeadingDirection(double heading) {
+    if (heading >= 0 && heading < 11.25) return 'North ↑';
+    if (heading >= 11.25 && heading < 33.75) return 'North-Northeast ↑↗';
+    if (heading >= 33.75 && heading < 56.25) return 'Northeast →↑';
+    if (heading >= 56.25 && heading < 78.75) return 'East-Northeast →↗';
+    if (heading >= 78.75 && heading < 101.25) return 'East →';
+    if (heading >= 101.25 && heading < 123.75) return 'East-Southeast →↘';
+    if (heading >= 123.75 && heading < 146.25) return 'Southeast ↓→';
+    if (heading >= 146.25 && heading < 168.75) return 'South-Southeast ↓↘';
+    if (heading >= 168.75 && heading < 191.25) return 'South ↓';
+    if (heading >= 191.25 && heading < 213.75) return 'South-Southwest ↓↙';
+    if (heading >= 213.75 && heading < 236.25) return 'Southwest ←↓';
+    if (heading >= 236.25 && heading < 258.75) return 'West-Southwest ←↙';
+    if (heading >= 258.75 && heading < 281.25) return 'West ←';
+    if (heading >= 281.25 && heading < 303.75) return 'West-Northwest ←↖';
+    if (heading >= 303.75 && heading < 326.25) return 'Northwest ↑←';
+    if (heading >= 326.25 && heading < 348.75) return 'North-Northwest ↑↖';
+    return 'North ↑'; // Default if heading is 360 or undefined
+  }
+
+// Convert coordinates to address
+  Future<void> _getAddressFromCoordinates() async {
+    if (_currentLocation != null) {
+      try {
+        List<Placemark> placemarks = await placemarkFromCoordinates(
+          _currentLocation!.latitude,
+          _currentLocation!.longitude,
+        );
+
+        if (placemarks.isNotEmpty) {
+          final Placemark place = placemarks.first;
+          final Placemark place2 = placemarks[2];
+          final Placemark place3 = placemarks[3];
+          _currentLocationName =
+              '${place.administrativeArea}, ${place3.subAdministrativeArea}, ${place2.subAdministrativeArea}, ${place2.locality}, ${place2.street}';
+          return;
+        } else {
+          _currentLocationName = 'No address found';
+          return;
+        }
+      } catch (e) {
+        _currentLocationName = 'Error retrieving address: $e';
+        return;
+      }
+    }
+    _currentLocationName =
+        'Location not available'; // Fallback return when _currentLocation is null
+    return;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final speedKmh = (_position?.speed ?? 0) * 3.6;
+    final speedThresholdKmh = 0.5 * 3.6; // 0.5 m/s converted to km/h (1.8 km/h)
+    final filteredSpeed = speedKmh > speedThresholdKmh ? 0.0 : speedKmh;
+
+    return Scaffold(
+      drawer: const MenuDrawer(HomePage.route),
+      body: Stack(
+        children: [
+          FlutterMap(
+            options: MapOptions(
+              initialCenter: terceiraCenter,
+              initialZoom: 10.0,
+              onTap: (_, p) =>
+                  setState(() => customMarkers.add(buildPin(p, filteredSpeed))),
+              cameraConstraint: CameraConstraint.contain(
+                bounds: LatLngBounds(
+                  const LatLng(-90, -180),
+                  const LatLng(90, 180),
+                ),
+              ),
+            ),
+            children: [
+              openStreetMapTileLayer,
+              MarkerLayer(
+                markers: [
+                  ...customMarkers, // Combine the custom markers
+                  ...poiMarkers, // and poi markers
+                ],
+                rotate: counterRotate,
+                alignment: selectedAlignment,
+              ),
+            ],
+          ),
+          const FloatingMenuButton(),
+          if (_currentLocation == null)
+            const Center(child: CircularProgressIndicator()),
+          Positioned(
+              bottom: 300, // Slightly adjust position for better alignment
+              left: 20,
+              right: 20,
+              child: MaterialButton(
+                onPressed: () => _mapController.move(_currentLocation!, 18),
+                child: Row(
+                  mainAxisSize: MainAxisSize
+                      .min, // Ensures the icon and text are aligned properly
+                  children: const [
+                    Icon(Icons.location_city), // Add your desired icon here
+                    SizedBox(
+                        width:
+                            8), // Optional: Adds spacing between the icon and text
+                    Text('London'),
+                  ],
+                ),
+              )),
+          if (_position != null)
+            Positioned(
+              bottom: 20, // Slightly adjust position for better alignment
+              left: 20,
+              right: 20,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 16.0, vertical: 12.0),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(16.0),
+                  gradient: LinearGradient(
+                    colors: [
+                      Colors.blueAccent.withOpacity(0.7),
+                      Colors.purple.withOpacity(0.7)
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                ),
+                child: Container(
+                  padding: const EdgeInsets.all(16.0),
+                  color: Colors.black.withOpacity(0.7),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      // First Column for Latitude and Longitude
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Latitude: ${_position!.latitude.toStringAsFixed(4)}',
+                              style: const TextStyle(
+                                  color: Colors.white, fontSize: 14),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Longitude: ${_position!.longitude.toStringAsFixed(4)}',
+                              style: const TextStyle(
+                                  color: Colors.white, fontSize: 14),
+                            ),
+                          ],
+                        ),
+                      ),
+                      // Second Column for Altitude and Speed
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Altitude: ${_position!.altitude.toStringAsFixed(2)} m',
+                              style: const TextStyle(
+                                  color: Colors.white, fontSize: 14),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Speed: ${filteredSpeed.toStringAsFixed(2)} km/h',
+                              style: const TextStyle(
+                                  color: Colors.white, fontSize: 14),
+                            ),
+                          ],
+                        ),
+                      ),
+                      // Third Column for Heading Direction
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Heading: ${getHeadingDirection(_position!.heading)}',
+                              style: const TextStyle(
+                                  color: Colors.white, fontSize: 14),
+                            ),
+                            Text(
+                              'Location Name: $_currentLocationName',
+                              style: const TextStyle(
+                                  color: Colors.white, fontSize: 14),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
