@@ -1,14 +1,13 @@
 import 'dart:math';
 
-import 'package:plataforma/widgets/show_no_web_perf_overlay_snackbar.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:plataforma/misc/tile_providers.dart';
 import 'package:plataforma/widgets/drawer/menu_drawer.dart';
 import 'package:plataforma/widgets/number_of_items_slider.dart';
 import 'package:plataforma/widgets/show_no_web_perf_overlay_snackbar.dart';
-import 'package:latlong2/latlong.dart';
 
 const _maxCirclesCount = 20000;
 

@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_map_cancellable_tile_provider/flutter_map_cancellable_tile_provider.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:plataforma/widgets/drawer/menu_drawer.dart';
 import 'package:plataforma/widgets/notice_banner.dart';
-import 'package:latlong2/latlong.dart';
 
 class FallbackUrlPage extends StatelessWidget {
   static const String route = '/fallback_url';
