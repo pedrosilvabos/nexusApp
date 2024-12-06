@@ -1,9 +1,8 @@
-import 'package:plataforma/misc/tile_providers.dart';
-import 'package:plataforma/widgets/drawer/menu_drawer.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
-
 import 'package:latlong2/latlong.dart';
+import 'package:plataforma/misc/tile_providers.dart';
+import 'package:plataforma/widgets/drawer/menu_drawer.dart';
 
 class InteractiveFlagsPage extends StatefulWidget {
   static const String route = '/interactive_flags_page';
