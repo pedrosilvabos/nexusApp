@@ -4,6 +4,8 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_svg/svg.dart';
 
 import 'package:latlong2/latlong.dart';
+import 'package:plataforma/widgets/information_panel.dart';
+import 'package:plataforma/widgets/navigation_grid.dart';
 
 class HomePage extends StatefulWidget {
   static const String route = '/';
@@ -297,12 +299,14 @@ class _HomePageState extends State<HomePage>
                       ),
                     ),
                   ),
+                  Spacer(),
 
+                  InfoPanel(),
                   // Row at the bottom of the screen
                   Container(
-                    height: 260,
+                    height: 220,
                     padding: const EdgeInsets.only(
-                        left: 16, top: 6, right: 16, bottom: 0),
+                        left: 10, top: 6, right: 10, bottom: 0),
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         colors: [
@@ -325,21 +329,47 @@ class _HomePageState extends State<HomePage>
                       ),
                     ),
                     // this the header
-                    child: Row(
-                      mainAxisAlignment:
-                          MainAxisAlignment.spaceAround, // Center horizontally
-                      children: [
-                        MaterialButton(
-                          onPressed: () => _animatedMapMove(_praia, 10),
-                          child: const Text('Praia'),
-                        ),
-                        MaterialButton(
-                          onPressed: () => _animatedMapMove(_angra, 10),
-                          child: const Text('Angra'),
-                        ),
-                      ],
-                    ),
+                    // child: Row(
+                    //   mainAxisAlignment:
+                    //       MainAxisAlignment.spaceAround, // Center horizontally
+                    //   children: [
+                    //     MaterialButton(
+                    //       onPressed: () => _animatedMapMove(_praia, 10),
+                    //       child: const Text('Praia'),
+                    //     ),
+                    //     MaterialButton(
+                    //       onPressed: () => _animatedMapMove(_angra, 10),
+                    //       child: const Text('Angra'),
+                    //     ),
+                    //   ],
+                    // ),
+
+                    child: const NavigationGrid(),
                   ),
+                  Container(
+                    height: 20,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          Theme.of(context)
+                              .scaffoldBackgroundColor
+                              .withOpacity(0), // Transparent
+                          Theme.of(context)
+                              .scaffoldBackgroundColor, // Fully opaque scaffold background
+                          arcticBlue, // Custom Arctic Blue
+                        ],
+                        stops: [
+                          0.0,
+                          0.05,
+                          1.0
+                        ], // Adjusting the transparent area to 10%
+                        begin: Alignment
+                            .topCenter, // Start the gradient from the top
+                        end: Alignment
+                            .bottomCenter, // End the gradient at the bottom
+                      ),
+                    ),
+                  )
                 ],
               ),
             ],
