@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 
 import 'package:flutter_map/flutter_map.dart';
-import 'package:flutter_svg/svg.dart';
 
 import 'package:latlong2/latlong.dart';
+import 'package:plataforma/widgets/bottom_menu.dart';
 import 'package:plataforma/widgets/information_panel.dart';
 import 'package:plataforma/widgets/navigation_grid.dart';
+import 'package:plataforma/widgets/splash_screen.dart';
 
 class HomePage extends StatefulWidget {
   static const String route = '/';
@@ -106,26 +107,21 @@ class _HomePageState extends State<HomePage>
     controller.forward();
   }
 
-  void _onMapReady() {
-    Future.delayed(const Duration(seconds: 5), () {
-      setState(() {
-        _isSplashVisible = false; // Hide splash screen after 5 seconds
-      });
-    });
-  }
-
   @override
   void initState() {
     super.initState();
 
     // Initialize animation controller and scale animation
     _controller = AnimationController(
-      duration: const Duration(seconds: 1),
+      duration: const Duration(seconds: 4),
       vsync: this,
     );
 
     _scaleAnimation = Tween<double>(begin: 1, end: 0.8).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeOut),
+      CurvedAnimation(
+        parent: _controller,
+        curve: Curves.fastOutSlowIn, // Fast in, smooth out
+      ),
     );
   }
 
@@ -145,42 +141,26 @@ class _HomePageState extends State<HomePage>
       // appBar: AppBar(title: const Text('Animated MapController')),
       //    drawer: const MenuDrawer(HomePage.route),
       bottomNavigationBar: !_isSplashVisible
-          ? DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    arcticBlue, // Custom Arctic Blue
-                    Theme.of(context)
-                        .scaffoldBackgroundColor, // System background color
-                  ],
-                  begin: Alignment.topCenter, // Start the gradient from the top
-                  end: Alignment.bottomCenter, // End the gradient at the bottom
-                ),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: [
-                  _buildTabItem(Icons.map, 'Discover'),
-                  _buildTabItem(Icons.local_offer, 'Deals'),
-                  _buildCenterButton(Icons.add, context),
-                  _buildTabItem(Icons.notifications, 'Alerts'),
-                  _buildTabItem(Icons.person, 'Profile'),
-                ],
-              ),
+          ? CustomBottomNavBar(
+              onCenterButtonPressed: () => _buildCenterButton(context),
             )
           : null,
 
       body: SafeArea(
         child: Stack(
           children: [
-            // Background map
-            if (_isSplashVisible) splashScreen(),
-
+            SplashScreen(
+              controller: _controller,
+              onSplashEnd: () {
+                setState(() {
+                  _isSplashVisible = false; // Hide splash screen
+                });
+              },
+            ),
             if (!_isSplashVisible) ...[
               FlutterMap(
                 mapController: mapController,
                 options: MapOptions(
-                  onMapReady: _onMapReady,
                   initialCenter: const LatLng(38.7167, -27.2177),
                   initialZoom: 10,
                 ),
@@ -395,184 +375,59 @@ class _HomePageState extends State<HomePage>
     );
   }
 
-  Widget _buildCenterButton(IconData icon, BuildContext context) {
-    return GestureDetector(
-      onTap: () {
-        showDialog(
-          context: context,
-          builder: (BuildContext context) {
-            return Dialog(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(8),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      'Action Menu',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.blue.shade400,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    ElevatedButton.icon(
-                      onPressed: () {
-                        print("Option 1 Selected");
-                        Navigator.pop(context); // Close the dialog
-                      },
-                      icon: const Icon(Icons.settings),
-                      label: const Text("Option 1"),
-                    ),
-                    const SizedBox(height: 8),
-                    ElevatedButton.icon(
-                      onPressed: () {
-                        print("Option 2 Selected");
-                        Navigator.pop(context); // Close the dialog
-                      },
-                      icon: const Icon(Icons.map),
-                      label: const Text("Option 2"),
-                    ),
-                    const SizedBox(height: 8),
-                    ElevatedButton.icon(
-                      onPressed: () {
-                        print("Option 3 Selected");
-                        Navigator.pop(context); // Close the dialog
-                      },
-                      icon: const Icon(Icons.info),
-                      label: const Text("Option 3"),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        );
-      },
-      child: Container(
-        height: 34,
-        width: 34,
-        decoration: BoxDecoration(
-          color: Colors.blue.shade400,
-          shape: BoxShape.circle,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.blue.shade200.withOpacity(0.5),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Icon(icon, color: Colors.white, size: 28),
-      ),
-    );
-  }
-
-  Widget splashScreen() {
-    final arcticBlue = const Color(0xFFB0C4DE);
-    final darkerArcticBlue = const Color(0xFF6EBED8);
-    Future.delayed(Duration(seconds: 5), () {
-      setState(() {
-        _isSplashVisible = false;
-      });
-    });
-    return AnimatedOpacity(
-      opacity: _isSplashVisible ? 1.0 : 0.0,
-      duration: const Duration(seconds: 30), // Duration of the fade effect
-      child: Center(
-        child: Stack(
-          children: [
-            AnimatedBuilder(
-              animation: _controller,
-              builder: (context, child) {
-                return DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter, // Gradient starts at the top
-                      end:
-                          Alignment.bottomCenter, // Gradient ends at the bottom
-                      colors: [
-                        darkerArcticBlue,
-                        pearlWhite
-                      ], // Colors from black to white
-                    ),
-                  ),
-                  child: Padding(
-                    padding:
-                        const EdgeInsets.only(bottom: 200, left: 20, right: 20),
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        shape:
-                            BoxShape.circle, // Ensures the shadow is circular
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black
-                                .withOpacity(0.15), // Shadow color and opacity
-                            blurRadius: 40, // Size of the shadow
-                            spreadRadius: 5, // Spread of the shadow
-                          ),
-                        ],
-                      ),
-                      child: SvgPicture.asset(
-                        'assets/windrose.svg', // Your splash screen SVG image
-                        fit: BoxFit.contain,
-                      ),
-                    ),
-                  ),
-                );
-              },
-            ),
-            Positioned(
-              bottom: 0,
-              top: MediaQuery.of(context).size.height * 0.6,
-              left: 0,
-              right: 0,
-              child: Container(
-                color: Colors.black.withOpacity(0.3),
-                height: 100,
-              ),
-            ),
-            Stack(
+  void _buildCenterButton(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return Dialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(8),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Positioned(
-                  top: MediaQuery.of(context).size.height *
-                      0.7, // Adjust position as needed
-                  left: MediaQuery.of(context).size.width *
-                      0.35, // Center horizontally
-                  child: Column(
-                    children: [
-                      Text(
-                        'GoLocal', // Static location name
-                        style: TextStyle(
-                          fontSize: 28, // Slightly larger for better visibility
-                          fontWeight: FontWeight.bold, // Bold for emphasis
-                          color:
-                              arcticBlue, // White text for better contrast on darker backgrounds
-                          shadows: [
-                            Shadow(
-                              offset: Offset(2, 2), // Position of the shadow
-                              blurRadius: 4, // Softens the shadow
-                              color: Colors.black
-                                  .withOpacity(0.5), // Semi-transparent shadow
-                            ),
-                          ],
-                          letterSpacing:
-                              1.2, // Adds some space between letters for a cleaner look
-                          fontFamily:
-                              'Arial', // You can use a custom font if you want
-                        ),
-                      ),
-                    ],
+                Text(
+                  'Action Menu',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.blue.shade400,
                   ),
+                ),
+                const SizedBox(height: 8),
+                ElevatedButton.icon(
+                  onPressed: () {
+                    print("Option 1 Selected");
+                    Navigator.pop(context); // Close the dialog
+                  },
+                  icon: const Icon(Icons.settings),
+                  label: const Text("Option 1"),
+                ),
+                const SizedBox(height: 8),
+                ElevatedButton.icon(
+                  onPressed: () {
+                    print("Option 2 Selected");
+                    Navigator.pop(context); // Close the dialog
+                  },
+                  icon: const Icon(Icons.map),
+                  label: const Text("Option 2"),
+                ),
+                const SizedBox(height: 8),
+                ElevatedButton.icon(
+                  onPressed: () {
+                    print("Option 3 Selected");
+                    Navigator.pop(context); // Close the dialog
+                  },
+                  icon: const Icon(Icons.info),
+                  label: const Text("Option 3"),
                 ),
               ],
             ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 }
