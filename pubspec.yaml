@@ -72,3 +72,4 @@ flutter:
     - assets/map/epsg3413/amsr2.png
     - assets/mapbox-logo-white.png
     - assets/windrose.svg
+    - assets/whatToDo.json

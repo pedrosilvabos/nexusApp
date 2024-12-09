@@ -1,4 +1,7 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'package:flutter_map/flutter_map.dart';
 
@@ -35,7 +38,7 @@ class _HomePageState extends State<HomePage>
   final arcticBlue = const Color(0xFFB0C4DE); //
   final pearlWhite = const Color(0xFFF8F8FF); // Pearl White color
   final darkerArcticBlue = const Color(0xFF79B0EF);
-
+  late final poiMarkers = <Marker>[];
   static const _markers = [
     Marker(
       width: 80,
@@ -116,7 +119,7 @@ class _HomePageState extends State<HomePage>
       duration: const Duration(seconds: 4),
       vsync: this,
     );
-
+    _loadJsonData();
     _scaleAnimation = Tween<double>(begin: 1, end: 0.8).animate(
       CurvedAnimation(
         parent: _controller,
@@ -171,7 +174,12 @@ class _HomePageState extends State<HomePage>
                     maxZoom: 20,
                     maxNativeZoom: 20,
                   ),
-                  const MarkerLayer(markers: _markers),
+                  MarkerLayer(
+                    markers: [
+                      ..._markers, // Combine the custom markers
+                      ...poiMarkers, // and poi markers
+                    ],
+                  ),
                 ],
               ),
               Column(
@@ -359,20 +367,94 @@ class _HomePageState extends State<HomePage>
     );
   }
 
-  Widget _buildTabItem(IconData icon, String label) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, color: Colors.blue.shade400),
-        Text(
-          label,
-          style: TextStyle(
-            color: Colors.blue.shade400,
-            fontSize: 12,
+  Marker poiMarker(LatLng point, dynamic name) {
+    return Marker(
+      point: point,
+      width: 150, // Increase width for more space
+
+      child: Stack(
+        alignment: Alignment.center, // Align elements centrally
+        children: [
+          Positioned(
+            bottom: 0, // Position the dot at the bottom
+            child: Container(
+              width: 5,
+              height: 5,
+              decoration: const BoxDecoration(
+                color: Colors.black, // Set the dot color to black
+                shape: BoxShape.circle, // Make it a circle
+              ),
+            ),
           ),
-        ),
-      ],
+          Container(
+            color: Colors.white.withOpacity(0.7), // Background for readability
+            child: Text(
+              name.toString(),
+              textAlign: TextAlign.center, // Center-align the text
+              style: const TextStyle(
+                fontSize: 10, // Adjust font size as needed
+                color: Colors.black, // Set text color
+              ),
+              maxLines: 1, // Limit to one line
+              overflow: TextOverflow.ellipsis, // Add ellipsis for long names
+              softWrap: false, // Prevent wrapping
+            ),
+          ),
+        ],
+      ),
     );
+  }
+
+  Future<void> _loadJsonData() async {
+    try {
+      // Load and decode the JSON file
+      final String jsonString =
+          await rootBundle.loadString('assets/whatToDo.json');
+
+      // Decode the JSON string
+      final dynamic jsonResponse = json.decode(jsonString);
+
+      if (jsonResponse is List) {
+        for (final item in jsonResponse) {
+          if (item is Map<String, dynamic>) {
+            // Safely access 'coordinates' and validate its type
+            final coordinates = item['coordinates'];
+            if (coordinates is Map<String, dynamic>) {
+              final latitudeString = coordinates['latitude'];
+              final longitudeString = coordinates['longitude'];
+
+              if (latitudeString != null && longitudeString != null) {
+                setState(() {
+                  try {
+                    // Safely parse the latitude and longitude
+                    final double latitude =
+                        double.parse(latitudeString.toString());
+                    final double longitude =
+                        double.parse(longitudeString.toString());
+
+                    // Add the POI marker to the set of markers
+                    poiMarkers.add(
+                        poiMarker(LatLng(latitude, longitude), item['name']));
+                  } catch (e) {
+                    debugPrint('Error parsing latitude or longitude: $e');
+                  }
+                });
+              } else {
+                debugPrint('Coordinates are missing latitude or longitude.');
+              }
+            } else {
+              debugPrint('Invalid coordinates format.');
+            }
+          } else {
+            debugPrint('Invalid item format in JSON.');
+          }
+        }
+      } else {
+        debugPrint('JSON response is not a list.');
+      }
+    } catch (e) {
+      debugPrint('Error loading or decoding JSON: $e');
+    }
   }
 
   void _buildCenterButton(BuildContext context) {
